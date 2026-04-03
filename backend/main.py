@@ -81,15 +81,21 @@ async def health():
 # ── Serve React frontend (production build) ──────────────────────────────────
 _FRONTEND_DIR = BASE_DIR / "static_frontend"
 if _FRONTEND_DIR.exists():
+    from fastapi.responses import FileResponse as _FileResponse
+
     # Serve Vite's /assets bundle (JS/CSS/images)
     app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIR / "assets")), name="assets")
 
-    from fastapi.responses import FileResponse as _FileResponse
+    # Serve other static root files (favicon, etc.)
+    _PUBLIC_FILES = {f.name for f in _FRONTEND_DIR.iterdir() if f.is_file()}
 
-    # Catch-all: any non-API path returns index.html so React Router works
+    # Catch-all: serve index.html for every non-API path (React Router)
+    @app.get("/", include_in_schema=False)
     @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str):
-        index = _FRONTEND_DIR / "index.html"
-        return _FileResponse(str(index))
+    async def serve_spa(full_path: str = ""):
+        # Serve real files that exist in the build root (favicon.svg, etc.)
+        if full_path and full_path in _PUBLIC_FILES:
+            return _FileResponse(str(_FRONTEND_DIR / full_path))
+        return _FileResponse(str(_FRONTEND_DIR / "index.html"))
 
     logger.info(f"Serving frontend from {_FRONTEND_DIR}")

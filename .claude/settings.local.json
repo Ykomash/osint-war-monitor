@@ -25,7 +25,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(gh repo:*)",
-      "Bash(git --version)"
+      "Bash(git --version)",
+      "Bash(git push:*)"
     ]
   }
 }
