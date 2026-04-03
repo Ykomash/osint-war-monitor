@@ -79,8 +79,17 @@ async def health():
 
 
 # ── Serve React frontend (production build) ──────────────────────────────────
-# Must be mounted LAST so API routes take priority
 _FRONTEND_DIR = BASE_DIR / "static_frontend"
 if _FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
+    # Serve Vite's /assets bundle (JS/CSS/images)
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIR / "assets")), name="assets")
+
+    from fastapi.responses import FileResponse as _FileResponse
+
+    # Catch-all: any non-API path returns index.html so React Router works
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        index = _FRONTEND_DIR / "index.html"
+        return _FileResponse(str(index))
+
     logger.info(f"Serving frontend from {_FRONTEND_DIR}")
