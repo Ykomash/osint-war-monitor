@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.oref.org.il)",
+      "WebFetch(domain:www.ynet.co.il)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:developer.nytimes.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx tsc:*)",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(echo \"DONE:$?\")",
+      "Bash(npm run:*)",
+      "Bash(python -m py_compile backend/services/news_aggregator.py backend/services/event_correlator.py backend/routers/events.py backend/routers/analysis.py backend/workers/scheduler.py)",
+      "Bash(venv/bin/python -m py_compile backend/services/news_aggregator.py backend/services/event_correlator.py backend/routers/events.py backend/routers/analysis.py backend/workers/scheduler.py)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(source ../venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(python3 -c \"import sqlite3; conn = sqlite3.connect\\(''data/osint.db''\\); print\\(''Messages:'', conn.execute\\(''SELECT COUNT\\(*\\) FROM telegram_messages''\\).fetchone\\(\\)[0]\\); rows = conn.execute\\(''SELECT channel_id, COUNT\\(*\\) FROM telegram_messages GROUP BY channel_id''\\).fetchall\\(\\); [print\\(f''  channel {r[0]}: {r[1]} msgs''\\) for r in rows]; conn.close\\(\\)\")",
+      "Bash(python3 -c \"import sqlite3; conn = sqlite3.connect\\(''/Users/yotamkomash/OSINT/backend/data/osint.db''\\); print\\(''Channels:'', conn.execute\\(''SELECT COUNT\\(*\\) FROM telegram_channels''\\).fetchone\\(\\)[0]\\); print\\(''Messages:'', conn.execute\\(''SELECT COUNT\\(*\\) FROM telegram_messages''\\).fetchone\\(\\)[0]\\); print\\(''By channel:''\\); [print\\(f''  ch{r[0]}: {r[1]} msgs''\\) for r in conn.execute\\(''SELECT channel_id, COUNT\\(*\\) FROM telegram_messages GROUP BY channel_id''\\).fetchall\\(\\)]; conn.close\\(\\)\")",
+      "Read(//tmp/**)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
