@@ -79,23 +79,31 @@ async def health():
 
 
 # ── Serve React frontend (production build) ──────────────────────────────────
+from fastapi.responses import FileResponse as _FileResponse
+
 _FRONTEND_DIR = BASE_DIR / "static_frontend"
+_ASSETS_DIR = _FRONTEND_DIR / "assets"
+
+logger.info(f"Frontend dir: {_FRONTEND_DIR} (exists={_FRONTEND_DIR.exists()})")
+
+# Mount /assets only if the build exists
+if _ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(_ASSETS_DIR)), name="assets")
+
+# Build the set of public root files (favicon, etc.) if frontend is present
+_PUBLIC_FILES: set = set()
 if _FRONTEND_DIR.exists():
-    from fastapi.responses import FileResponse as _FileResponse
-
-    # Serve Vite's /assets bundle (JS/CSS/images)
-    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIR / "assets")), name="assets")
-
-    # Serve other static root files (favicon, etc.)
     _PUBLIC_FILES = {f.name for f in _FRONTEND_DIR.iterdir() if f.is_file()}
+    logger.info(f"Serving frontend from {_FRONTEND_DIR}, public files: {_PUBLIC_FILES}")
 
-    # Catch-all: serve index.html for every non-API path (React Router)
-    @app.get("/", include_in_schema=False)
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str = ""):
-        # Serve real files that exist in the build root (favicon.svg, etc.)
-        if full_path and full_path in _PUBLIC_FILES:
-            return _FileResponse(str(_FRONTEND_DIR / full_path))
-        return _FileResponse(str(_FRONTEND_DIR / "index.html"))
-
-    logger.info(f"Serving frontend from {_FRONTEND_DIR}")
+# Catch-all: ALWAYS registered so React Router paths (e.g. /admin) never 404
+@app.get("/", include_in_schema=False)
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str = ""):
+    index = _FRONTEND_DIR / "index.html"
+    if not index.exists():
+        # Frontend not built — return diagnostic JSON so we can debug Railway
+        return {"error": "Frontend not found", "frontend_dir": str(_FRONTEND_DIR), "base_dir": str(BASE_DIR)}
+    if full_path and full_path in _PUBLIC_FILES:
+        return _FileResponse(str(_FRONTEND_DIR / full_path))
+    return _FileResponse(str(index))
