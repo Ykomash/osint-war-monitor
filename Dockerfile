@@ -24,8 +24,8 @@ COPY backend/ ./
 # Built React app — FastAPI will serve it at /
 COPY --from=frontend /frontend/dist ./static_frontend
 
-# Default data dir (overridden by Railway volume mount via DATA_DIR env var)
-RUN mkdir -p /data/media
+# Pre-create both possible data dirs so StaticFiles never fails on missing dir
+RUN mkdir -p /data/media /app/data/media
 
 EXPOSE 8000
 

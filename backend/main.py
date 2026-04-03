@@ -59,8 +59,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure media dir exists at import time (before StaticFiles tries to validate it)
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+
 # Static files for media
-app.mount("/media", StaticFiles(directory=str(DATA_DIR / "media")), name="media")
+app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 
 # Routers
 app.include_router(news.router)
