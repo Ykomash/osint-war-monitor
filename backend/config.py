@@ -19,7 +19,7 @@ RSS_FEEDS = {
     "cnn": "http://rss.cnn.com/rss/edition_meast.rss",
     "nyt": "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml",
     "bbc": "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
-    "toi": "https://www.timesofisrael.com/feed/",
+    # toi blocks server-side requests with 403 — removed
 }
 
 NYT_API_KEY = os.getenv("NYT_API_KEY", "")
