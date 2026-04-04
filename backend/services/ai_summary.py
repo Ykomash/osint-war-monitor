@@ -88,8 +88,11 @@ async def generate_summary() -> Optional[str]:
         return None
 
     try:
+        import httpx
         from openai import AsyncOpenAI, APIConnectionError, AuthenticationError, RateLimitError
-        client = AsyncOpenAI(api_key=api_key, timeout=60.0)
+        # Force HTTP/1.1 — httpx HTTP/2 can fail on some Railway network configs
+        http_client = httpx.AsyncClient(http2=False, timeout=httpx.Timeout(60.0, connect=15.0))
+        client = AsyncOpenAI(api_key=api_key, http_client=http_client, max_retries=0)
 
         # Collect last 24h of data
         since = datetime.utcnow() - timedelta(hours=24)
