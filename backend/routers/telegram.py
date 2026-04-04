@@ -136,7 +136,7 @@ async def create_channel(body: ChannelCreate, db: AsyncSession = Depends(get_db)
 
     # Update the monitor's channel mapping and trigger backfill
     import asyncio
-    from services.telegram_monitor import _monitored_channels, _get_client, _backfill_channel
+    from services.telegram_monitor import _monitored_channels, _get_client, _backfill_channel, _download_pending_media
     _monitored_channels[info["entity_id"]] = channel.id
 
     async def _do_backfill():
@@ -145,6 +145,8 @@ async def create_channel(body: ChannelCreate, db: AsyncSession = Depends(get_db)
             if client:
                 entity = await client.get_entity(info["entity_id"])
                 await _backfill_channel(client, entity, channel.id, limit=500)
+                # Download media for backfilled messages (runs after backfill completes)
+                await _download_pending_media(client, channel.id)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Backfill error for new channel: {e}")
