@@ -22,6 +22,13 @@ class ChannelCreate(BaseModel):
     display_name: str = ""
 
 
+@router.get("/status")
+async def telegram_status():
+    """Diagnostic: Telegram monitor connection state."""
+    from services.telegram_monitor import get_monitor_status
+    return await get_monitor_status()
+
+
 @router.get("/messages")
 async def list_messages(
     limit: int = Query(50, le=200),

@@ -394,48 +394,86 @@ async def poll_new_messages():
         await asyncio.sleep(60)
 
 
+async def get_monitor_status() -> dict:
+    """Return current monitor status for diagnostics."""
+    import os as _os
+    session_file = TELEGRAM_SESSION_PATH + ".session"
+    session_exists = _os.path.exists(session_file)
+    session_size = _os.path.getsize(session_file) if session_exists else 0
+    try:
+        connected = _client is not None and _client.is_connected()
+    except Exception:
+        connected = False
+    return {
+        "client_initialized": _client is not None,
+        "connected": connected,
+        "session_file_exists": session_exists,
+        "session_file_bytes": session_size,
+        "monitored_channels_count": len(_monitored_channels),
+        "monitored_db_channel_ids": list(_monitored_channels.values()),
+        "api_id_set": bool(TELEGRAM_API_ID),
+        "api_hash_set": bool(TELEGRAM_API_HASH),
+    }
+
+
 async def run_telegram_monitor():
-    """Main loop: connect to Telegram and listen for messages."""
+    """Main loop: connect to Telegram, with auto-reconnect on failure."""
     import asyncio as _asyncio
     await _load_keywords()
 
-    client = await _get_client()
-    if not client:
-        return
-
-    # Load configured channels from DB
-    async with async_session() as db:
-        result = await db.execute(
-            select(TelegramChannel).where(TelegramChannel.is_active.is_(True))
-        )
-        channels = result.scalars().all()
-        for ch in channels:
-            try:
-                entity = await client.get_entity(ch.channel_identifier)
-                _monitored_channels[entity.id] = ch.id
-                logger.info(f"Monitoring Telegram channel: {ch.display_name}")
-            except Exception as e:
-                logger.error(f"Failed to resolve channel {ch.channel_identifier}: {e}")
-
-    # Backfill historical messages then download their media
-    for entity_id, db_channel_id in _monitored_channels.items():
+    while True:
         try:
-            entity = await client.get_entity(entity_id)
-            await _backfill_channel(client, entity, db_channel_id, limit=500)
-            # Download media for backfilled messages in background
-            _asyncio.create_task(
-                _download_pending_media(client, db_channel_id),
-                name=f"media_dl_{db_channel_id}"
-            )
+            global _client
+            _client = None  # reset so _get_client() tries a fresh connect
+
+            client = await _get_client()
+            if not client:
+                logger.warning("Telegram client unavailable (missing credentials or session). Retrying in 5 min...")
+                await asyncio.sleep(300)
+                continue
+
+            # Load configured channels from DB
+            async with async_session() as db:
+                result = await db.execute(
+                    select(TelegramChannel).where(TelegramChannel.is_active.is_(True))
+                )
+                channels = result.scalars().all()
+
+            _monitored_channels.clear()
+            for ch in channels:
+                try:
+                    entity = await client.get_entity(ch.channel_identifier)
+                    _monitored_channels[entity.id] = ch.id
+                    logger.info(f"Monitoring channel: {ch.display_name} ({ch.channel_identifier})")
+                except Exception as e:
+                    logger.error(f"Failed to resolve channel {ch.channel_identifier}: {e}")
+
+            logger.info(f"Resolved {len(_monitored_channels)} channels to monitor")
+
+            # Backfill historical messages then download their media
+            for entity_id, db_channel_id in list(_monitored_channels.items()):
+                try:
+                    entity = await client.get_entity(entity_id)
+                    await _backfill_channel(client, entity, db_channel_id, limit=500)
+                    _asyncio.create_task(
+                        _download_pending_media(client, db_channel_id),
+                        name=f"media_dl_{db_channel_id}"
+                    )
+                except Exception as e:
+                    logger.error(f"Backfill error for entity {entity_id}: {e}")
+
+            # Register real-time message handler
+            from telethon import events
+            client.add_event_handler(_handle_message, events.NewMessage())
+
+            # Start the 60-second poll loop as a concurrent task
+            _asyncio.create_task(poll_new_messages(), name="telegram_poll")
+
+            logger.info(f"Telegram monitor running, watching {len(_monitored_channels)} channels")
+            await client.run_until_disconnected()
+            logger.warning("Telegram client disconnected — will reconnect in 30s...")
+
         except Exception as e:
-            logger.error(f"Backfill error for entity {entity_id}: {e}")
+            logger.error(f"Telegram monitor crashed: {e}", exc_info=True)
 
-    # Register real-time message handler
-    from telethon import events
-    client.add_event_handler(_handle_message, events.NewMessage())
-
-    # Also start the 60-second poll loop as a concurrent task
-    _asyncio.create_task(poll_new_messages(), name="telegram_poll")
-
-    logger.info(f"Telegram monitor running, watching {len(_monitored_channels)} channels")
-    await client.run_until_disconnected()
+        await asyncio.sleep(30)
