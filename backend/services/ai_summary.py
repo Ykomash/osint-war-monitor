@@ -161,18 +161,19 @@ async def generate_summary() -> Optional[str]:
             )
             db.add(summary)
             await db.commit()
+            await db.refresh(summary)  # needed to read summary.id after commit in async SQLAlchemy
 
-            await ws_manager.broadcast("new_summary", {
-                "id": summary.id,
-                "generated_at": summary.generated_at.isoformat(),
-            })
+        await ws_manager.broadcast("new_summary", {
+            "id": summary.id,
+            "generated_at": summary.generated_at.isoformat(),
+        })
 
         logger.info("AI summary generated successfully")
         return summary_text
 
     except Exception as e:
-        logger.error(f"Failed to generate AI summary: {e}")
-        return None
+        logger.error(f"Failed to generate AI summary: {e}", exc_info=True)
+        raise RuntimeError(str(e)) from e
 
 
 async def auto_generate_summary():

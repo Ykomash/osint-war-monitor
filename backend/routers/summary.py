@@ -1,5 +1,7 @@
 """AI Summary endpoints."""
 
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from models import Summary
 from services.ai_summary import generate_summary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/summary", tags=["summary"])
 
@@ -29,7 +33,10 @@ async def get_latest_summary(db: AsyncSession = Depends(get_db)):
 
 @router.post("/generate")
 async def trigger_summary():
-    content = await generate_summary()
-    if content is None:
-        return {"error": "Failed to generate summary. Check OpenAI API key."}
-    return {"status": "ok", "content": content}
+    try:
+        content = await generate_summary()
+        return {"status": "ok", "content": content}
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Summary generation error: {error_msg}")
+        return {"error": error_msg or "Failed to generate summary. Check OpenAI API key and account credits."}
