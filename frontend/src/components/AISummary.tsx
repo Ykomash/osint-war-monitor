@@ -64,10 +64,10 @@ export default function AISummary({ subscribe }: Props) {
       if (/^\d+\.\s/.test(line)) {
         // Numbered list item
         const content = line.replace(/^\d+\.\s/, '');
-        return <li key={i} className="text-xs text-gray-300 ml-4 list-decimal mb-0.5">{renderInline(content)}</li>;
+        return <li key={i} className="text-xs text-gray-300 mr-4 list-decimal mb-0.5">{renderInline(content)}</li>;
       }
       if (line.startsWith('- ')) {
-        return <li key={i} className="text-xs text-gray-300 ml-4 list-disc mb-0.5">{renderInline(line.slice(2))}</li>;
+        return <li key={i} className="text-xs text-gray-300 mr-4 list-disc mb-0.5">{renderInline(line.slice(2))}</li>;
       }
       if (line.trim() === '') return <div key={i} className="h-1.5" />;
       return <p key={i} className="text-xs text-gray-300 leading-relaxed">{renderInline(line)}</p>;
@@ -110,9 +110,9 @@ export default function AISummary({ subscribe }: Props) {
 
       {/* Content */}
       {!collapsed && (
-        <div className="px-4 py-3 max-h-[400px] overflow-y-auto">
+        <div className="px-4 py-3 max-h-[400px] overflow-y-auto" dir="rtl">
           {!summary?.content ? (
-            <p className="text-gray-500 text-xs text-center py-4">
+            <p className="text-gray-500 text-xs text-center py-4" dir="ltr">
               No briefing generated yet. Click "Refresh" to generate, or set OPENAI_API_KEY in .env
             </p>
           ) : (

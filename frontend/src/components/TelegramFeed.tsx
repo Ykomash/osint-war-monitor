@@ -280,7 +280,7 @@ export default function TelegramFeed({ subscribe }: Props) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+      <div className="overflow-y-auto px-3 py-3 space-y-2 max-h-96 lg:max-h-none lg:flex-1">
         {messages.length === 0 && (
           <div className="text-center py-8 space-y-2">
             {hasActiveFilters ? (
