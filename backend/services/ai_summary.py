@@ -88,8 +88,8 @@ async def generate_summary() -> Optional[str]:
         return None
 
     try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key)
+        from openai import AsyncOpenAI, APIConnectionError, AuthenticationError, RateLimitError
+        client = AsyncOpenAI(api_key=api_key, timeout=60.0)
 
         # Collect last 24h of data
         since = datetime.utcnow() - timedelta(hours=24)
@@ -140,15 +140,33 @@ async def generate_summary() -> Optional[str]:
 
         context = "\n".join(context_parts)
 
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": BRIEFING_PROMPT},
-                {"role": "user", "content": f"Generate today's briefing based on this data:\n\n{context}"},
-            ],
-            max_tokens=3000,
-            temperature=0.3,
-        )
+        # Retry up to 3 times on transient connection errors
+        last_error: Exception = RuntimeError("Unknown error")
+        for attempt in range(3):
+            try:
+                response = await client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": BRIEFING_PROMPT},
+                        {"role": "user", "content": f"Generate today's briefing based on this data:\n\n{context}"},
+                    ],
+                    max_tokens=3000,
+                    temperature=0.3,
+                )
+                break  # success
+            except AuthenticationError as e:
+                raise RuntimeError(f"Invalid OpenAI API key: {e}") from e
+            except RateLimitError as e:
+                raise RuntimeError(f"OpenAI rate limit or quota exceeded: {e}") from e
+            except APIConnectionError as e:
+                last_error = RuntimeError(f"Cannot reach OpenAI API (attempt {attempt+1}/3): {e}")
+                logger.warning(f"OpenAI connection error attempt {attempt+1}: {e}")
+                if attempt < 2:
+                    await asyncio.sleep(5 * (attempt + 1))
+                    continue
+                raise last_error
+        else:
+            raise last_error
 
         summary_text = response.choices[0].message.content
 
@@ -161,7 +179,7 @@ async def generate_summary() -> Optional[str]:
             )
             db.add(summary)
             await db.commit()
-            await db.refresh(summary)  # needed to read summary.id after commit in async SQLAlchemy
+            await db.refresh(summary)
 
         await ws_manager.broadcast("new_summary", {
             "id": summary.id,
@@ -171,6 +189,8 @@ async def generate_summary() -> Optional[str]:
         logger.info("AI summary generated successfully")
         return summary_text
 
+    except RuntimeError:
+        raise  # already formatted, re-raise as-is
     except Exception as e:
         logger.error(f"Failed to generate AI summary: {e}", exc_info=True)
         raise RuntimeError(str(e)) from e
