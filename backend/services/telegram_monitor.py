@@ -164,7 +164,7 @@ async def _handle_message(event):
 
 
 async def add_channel(channel_identifier: str) -> Optional[dict]:
-    """Add a channel to monitoring. Returns channel info or None on failure."""
+    """Add a channel to monitoring. Returns channel info or raises on failure."""
     client = await _get_client()
     if not client:
         return None
@@ -176,8 +176,9 @@ async def add_channel(channel_identifier: str) -> Optional[dict]:
             "title": getattr(entity, "title", channel_identifier),
         }
     except Exception as e:
-        logger.error(f"Failed to resolve channel {channel_identifier}: {e}")
-        return None
+        logger.error(f"Failed to resolve channel {channel_identifier}: {type(e).__name__}: {e}")
+        # Re-raise so the router can return the real error to the frontend
+        raise
 
 
 async def _backfill_channel(client, entity, db_channel_id: int, limit: int = 500):

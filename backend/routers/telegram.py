@@ -118,15 +118,13 @@ async def create_channel(body: ChannelCreate, db: AsyncSession = Depends(get_db)
     if _client is None:
         raise HTTPException(503, "Telegram client not connected. Check TELEGRAM_API_ID / TELEGRAM_API_HASH / session.")
 
-    # Try to resolve via Telethon — return a clear error if it fails
-    info = await add_channel(body.channel_identifier)
+    # Try to resolve via Telethon — return the real error if it fails
+    try:
+        info = await add_channel(body.channel_identifier)
+    except Exception as e:
+        raise HTTPException(400, f"Telegram error for '{body.channel_identifier}': {type(e).__name__}: {e}")
     if not info:
-        raise HTTPException(
-            400,
-            f"Could not resolve '{body.channel_identifier}'. "
-            "Make sure your account is a member of the channel/group and use the correct format: "
-            "@username for public channels, or https://t.me/+xxx for private groups."
-        )
+        raise HTTPException(400, f"Could not resolve '{body.channel_identifier}'.")
 
     channel = TelegramChannel(
         channel_identifier=body.channel_identifier,
