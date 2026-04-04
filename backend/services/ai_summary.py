@@ -87,6 +87,15 @@ async def generate_summary() -> Optional[str]:
         logger.warning("OpenAI API key not set, skipping summary generation")
         return None
 
+    # Strip whitespace/newlines — common copy-paste corruption
+    api_key = "".join(api_key.split())
+    # Validate it looks like a real key (ASCII only, starts with sk-)
+    if not api_key.startswith("sk-") or not api_key.isascii():
+        raise RuntimeError(
+            f"OpenAI API key looks invalid — contains non-ASCII characters or wrong format. "
+            f"Key starts with: '{api_key[:10]}...'. Please generate a fresh key at platform.openai.com/api-keys"
+        )
+
     try:
         # Collect last 24h of data
         since = datetime.utcnow() - timedelta(hours=24)
