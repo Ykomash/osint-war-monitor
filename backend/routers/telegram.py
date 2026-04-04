@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import MEDIA_DIR
@@ -35,6 +35,12 @@ async def list_messages(
     offset: int = 0,
     channel_id: Optional[int] = None,
     flagged_only: bool = False,
+    search: Optional[str] = None,
+    has_media: Optional[bool] = None,
+    hour_from: Optional[int] = Query(None, ge=0, le=23),
+    hour_to: Optional[int] = Query(None, ge=0, le=23),
+    minute_from: Optional[int] = Query(None, ge=0, le=59),
+    minute_to: Optional[int] = Query(None, ge=0, le=59),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TelegramMessage).order_by(TelegramMessage.timestamp.desc())
@@ -42,6 +48,20 @@ async def list_messages(
         stmt = stmt.where(TelegramMessage.channel_id == channel_id)
     if flagged_only:
         stmt = stmt.where(TelegramMessage.is_flagged.is_(True))
+    if search:
+        stmt = stmt.where(TelegramMessage.text.ilike(f"%{search}%"))
+    if has_media is True:
+        stmt = stmt.where(TelegramMessage.has_media.is_(True))
+    elif has_media is False:
+        stmt = stmt.where(TelegramMessage.has_media.is_(False))
+    if hour_from is not None:
+        stmt = stmt.where(func.strftime("%H", TelegramMessage.timestamp).cast(Integer) >= hour_from)
+    if hour_to is not None:
+        stmt = stmt.where(func.strftime("%H", TelegramMessage.timestamp).cast(Integer) <= hour_to)
+    if minute_from is not None:
+        stmt = stmt.where(func.strftime("%M", TelegramMessage.timestamp).cast(Integer) >= minute_from)
+    if minute_to is not None:
+        stmt = stmt.where(func.strftime("%M", TelegramMessage.timestamp).cast(Integer) <= minute_to)
     stmt = stmt.offset(offset).limit(limit)
     result = await db.execute(stmt)
     messages = result.scalars().all()
