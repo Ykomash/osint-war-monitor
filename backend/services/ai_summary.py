@@ -15,56 +15,39 @@ from services.ws_manager import ws_manager
 
 logger = logging.getLogger(__name__)
 
-BRIEFING_PROMPT = """You are a senior military intelligence analyst preparing a daily briefing for the Israeli Home Front Command. This briefing will be presented to a commander. Be specific, informative, and data-driven.
+BRIEFING_PROMPT = """אתה אנליסט מודיעין בכיר המכין תדרוך יומי לפיקוד העורף הישראלי. התדרוך יוצג לקצין מפקד. היה ספציפי, עובדתי ומבוסס נתונים.
 
-Structure the briefing EXACTLY as follows — no additional sections:
+כתוב את כל התדרוך **בעברית בלבד**.
 
-## Overview
-3-4 sentences. State the current threat level, the most significant event in the last 24 hours, and the overall operational tempo. Be direct — this is the executive summary.
+## סקירה כללית
+3-4 משפטים. ציין את רמת האיום הנוכחית, האירוע המשמעותי ביותר ב-24 השעות האחרונות והקצב המבצעי הכולל. היה ישיר — זהו הסיכום הניהולי.
 
-## Iran
-Cover ALL of the following if there is relevant data:
-- Missile/drone launches or tests
-- Nuclear program developments (enrichment levels, IAEA reports, facility activity)
-- Proxy coordination (orders to Hezbollah, Houthis, Iraqi militias)
-- Diplomatic activity or sanctions
-- Statements and threats by Iranian leadership
-- Military posture changes
-Cite specific numbers, locations, and times when available. If no significant activity: "No significant developments."
+## [כותרות דינמיות — לפי הנתונים בלבד]
+אל תשתמש בכותרות קבועות מראש. צור סעיפים רק עבור נושאים שיש עליהם נתונים ממשיים ב-24 השעות האחרונות.
+דוגמאות לכותרות אפשריות (בחר רק את הרלוונטיים): חמאס, חיזבאללה, תימן / החות'ים, איראן, הגדה המערבית, סוריה, עיראק, מתקפות סייבר, דיפלומטיה, מצב הומניטרי.
+אל תמציא סעיפים לנושאים שאין עליהם מידע.
 
-## Lebanon
-Cover ALL of the following if there is relevant data:
-- Hezbollah rocket, missile, drone, or anti-tank fire into Israel — numbers, locations, casualties
-- IDF operations in Lebanon — locations, objectives, outcomes
-- Ceasefire compliance or violations
-- Hezbollah force movements, rearmament, or military infrastructure
-- Lebanese army or UNIFIL activity
-- Civilian displacement or humanitarian situation affecting operational space
-Cite specific numbers, locations, and times when available. If no significant activity: "No significant developments."
+בכל סעיף רלוונטי, כלול לפי הצורך:
+- ירי / מתקפות / אירועים — מספרים, מיקומים, נפגעים
+- מבצעי צה"ל / תגובות צבאיות
+- הצהרות מנהיגות ואיומים
+- שינויים במיצוב כוחות
+- פיתוחים דיפלומטיים
+- פרטים לא מאומתים — סמן "(לא מאומת)"
 
-## Yemen
-Cover ALL of the following if there is relevant data:
-- Houthi ballistic missile or drone launches — targets, interception outcome
-- Red Sea shipping attacks — vessel names, locations, nationalities
-- US/coalition strikes on Houthi positions — locations, results
-- Houthi declarations and threats
-- Strategic impact on Israeli shipping or airspace
-Cite specific numbers, locations, and times when available. If no significant activity: "No significant developments."
+## תחזית ל-24-72 שעות הקרובות
+- תרחישי הסלמה סבירים לכל חזית פעילה
+- אירועי טריגר שעשויים לשנות את תמונת האיום
+- אזורים בישראל בסיכון גבוה בטווח הקצר
+- המלצת מוכנות לפיקוד העורף
+- פערי מידע מרכזיים המשפיעים על ההערכה
 
-## What to Expect Next
-Based on current intelligence patterns, assess:
-- Most likely escalation scenarios in the next 24-72 hours per front (Iran / Lebanon / Yemen)
-- Trigger events that could change the threat picture (diplomatic developments, IDF operations, retaliation cycles)
-- Which areas of Israel face the highest threat in the near term
-- Recommended readiness posture for Home Front Command
-- Key unknowns or intelligence gaps that could affect the assessment
-
-RULES:
-- Military briefing style: factual, direct, numbered lists where appropriate
-- Include specific figures, unit names, and locations when the data provides them
-- Flag unverified information with "(unconfirmed)"
-- Translate Hebrew content; preserve Hebrew place names and organization names
-- Never pad with vague generalities — if data is thin, say so and explain the gap"""
+כללים מחייבים:
+- כתוב הכל בעברית — תרגם כל תוכן באנגלית
+- שמור על שמות מקומות, שמות ארגונים ושמות פעולות בשפת המקור
+- סגנון תדרוך צבאי: עובדתי, ישיר, רשימות ממוספרות לפי הצורך
+- כלול נתונים ספציפיים כשהם זמינים
+- אם הנתונים דלים, ציין זאת במפורש — אל תמלא בהכללות"""
 
 
 async def generate_summary() -> Optional[str]:
@@ -120,23 +103,36 @@ async def generate_summary() -> Optional[str]:
             messages = result.scalars().all()
 
         # Build context
+        import re as _re
+
         context_parts = []
 
         if articles:
             context_parts.append("=== NEWS ARTICLES (last 24h) ===")
+            seen_titles: set[str] = set()
             for a in articles:
+                # Deduplicate by normalised title (lowercase, strip punctuation)
+                norm = _re.sub(r'[^\w\s]', '', (a.title or "").lower()).strip()
+                if norm in seen_titles:
+                    continue
+                seen_titles.add(norm)
                 time_str = a.published_at.strftime("%H:%M") if a.published_at else "??"
                 desc = ""
                 if a.description:
-                    import re as _re
                     desc = " | " + _re.sub(r'<[^>]+>', '', a.description).strip()[:150]
                 context_parts.append(f"[{a.source.upper()} {time_str}] {a.title}{desc}")
 
         if messages:
             context_parts.append("\n=== TELEGRAM INTEL (last 24h) ===")
+            seen_texts: set[str] = set()
             for m in messages:
                 if not m.text or len(m.text.strip()) < 10:
                     continue
+                # Deduplicate by first 80 chars of normalised text
+                norm = _re.sub(r'\s+', ' ', m.text.strip().lower())[:80]
+                if norm in seen_texts:
+                    continue
+                seen_texts.add(norm)
                 time_str = m.timestamp.strftime("%H:%M") if m.timestamp else "??"
                 flag_tag = " [PRIORITY]" if m.is_flagged else ""
                 context_parts.append(f"[{time_str}{flag_tag}] {m.text[:300]}")
@@ -160,9 +156,9 @@ async def generate_summary() -> Optional[str]:
                     "model": "gpt-4o-mini",
                     "messages": [
                         {"role": "system", "content": BRIEFING_PROMPT},
-                        {"role": "user", "content": f"Generate today's briefing based on this data:\n\n{context}"},
+                        {"role": "user", "content": f"צור את תדרוך היום על בסיס הנתונים הבאים:\n\n{context}"},
                     ],
-                    "max_tokens": 3000,
+                    "max_tokens": 4000,
                     "temperature": 0.3,
                 },
                 timeout=90,
