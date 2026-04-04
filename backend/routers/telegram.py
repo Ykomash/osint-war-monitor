@@ -113,36 +113,45 @@ async def create_channel(body: ChannelCreate, db: AsyncSession = Depends(get_db)
     if existing.scalar_one_or_none():
         raise HTTPException(409, "Channel already exists")
 
-    # Try to resolve via Telethon
-    from services.telegram_monitor import add_channel
+    # Fail fast if Telegram client isn't up
+    from services.telegram_monitor import add_channel, _client
+    if _client is None:
+        raise HTTPException(503, "Telegram client not connected. Check TELEGRAM_API_ID / TELEGRAM_API_HASH / session.")
+
+    # Try to resolve via Telethon — return a clear error if it fails
     info = await add_channel(body.channel_identifier)
+    if not info:
+        raise HTTPException(
+            400,
+            f"Could not resolve '{body.channel_identifier}'. "
+            "Make sure your account is a member of the channel/group and use the correct format: "
+            "@username for public channels, or https://t.me/+xxx for private groups."
+        )
 
     channel = TelegramChannel(
         channel_identifier=body.channel_identifier,
-        display_name=body.display_name or (info["title"] if info else body.channel_identifier),
+        display_name=body.display_name or info["title"],
         is_active=True,
     )
     db.add(channel)
     await db.commit()
 
     # Update the monitor's channel mapping and trigger backfill
-    if info:
-        import asyncio
-        from services.telegram_monitor import _monitored_channels, _get_client, _backfill_channel
-        _monitored_channels[info["entity_id"]] = channel.id
+    import asyncio
+    from services.telegram_monitor import _monitored_channels, _get_client, _backfill_channel
+    _monitored_channels[info["entity_id"]] = channel.id
 
-        # Kick off backfill as a background task (non-blocking)
-        async def _do_backfill():
-            try:
-                client = await _get_client()
-                if client:
-                    entity = await client.get_entity(info["entity_id"])
-                    await _backfill_channel(client, entity, channel.id, limit=500)
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).error(f"Backfill error for new channel: {e}")
+    async def _do_backfill():
+        try:
+            client = await _get_client()
+            if client:
+                entity = await client.get_entity(info["entity_id"])
+                await _backfill_channel(client, entity, channel.id, limit=500)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Backfill error for new channel: {e}")
 
-        asyncio.create_task(_do_backfill())
+    asyncio.create_task(_do_backfill())
 
     return {"id": channel.id, "display_name": channel.display_name}
 

@@ -25,12 +25,14 @@ export default function AdminPanel() {
   const handleAddChannel = async () => {
     if (!newChannel) return;
     try {
-      await addTelegramChannel(newChannel, newChannelName);
+      const result = await addTelegramChannel(newChannel, newChannelName);
       setNewChannel('');
       setNewChannelName('');
       getTelegramChannels().then(setChannels);
+      alert(`✅ Added: ${(result.data as any)?.display_name || newChannel}. Backfilling messages...`);
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Failed to add channel');
+      const detail = e.response?.data?.detail || 'Failed to add channel';
+      alert(`❌ ${detail}`);
     }
   };
 
