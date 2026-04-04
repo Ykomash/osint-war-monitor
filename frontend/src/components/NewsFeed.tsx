@@ -99,8 +99,8 @@ export default function NewsFeed({ subscribe }: Props) {
         </div>
       )}
 
-      {/* ── MAIN HEADLINES ── fills remaining space, scrollable */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      {/* ── MAIN HEADLINES ── fixed height on mobile, fills space on desktop */}
+      <div className="overflow-y-auto px-3 py-3 max-h-72 lg:max-h-none lg:flex-1">
         <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
           Main Headlines
         </div>
