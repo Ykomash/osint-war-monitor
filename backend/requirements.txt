@@ -9,3 +9,4 @@ python-dotenv==1.0.1
 python-multipart==0.0.12
 websockets==13.1
 openai==1.82.0
+requests==2.32.3

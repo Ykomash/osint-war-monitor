@@ -88,12 +88,6 @@ async def generate_summary() -> Optional[str]:
         return None
 
     try:
-        import httpx
-        from openai import AsyncOpenAI, APIConnectionError, AuthenticationError, RateLimitError
-        # Force HTTP/1.1 — httpx HTTP/2 can fail on some Railway network configs
-        http_client = httpx.AsyncClient(http2=False, timeout=httpx.Timeout(60.0, connect=15.0))
-        client = AsyncOpenAI(api_key=api_key, http_client=http_client, max_retries=0)
-
         # Collect last 24h of data
         since = datetime.utcnow() - timedelta(hours=24)
 
@@ -143,35 +137,36 @@ async def generate_summary() -> Optional[str]:
 
         context = "\n".join(context_parts)
 
-        # Retry up to 3 times on transient connection errors
-        last_error: Exception = RuntimeError("Unknown error")
-        for attempt in range(3):
-            try:
-                response = await client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
+        # Use requests (urllib3) instead of httpx — avoids httpx connection issues on Railway
+        import requests as _requests
+
+        def _call_openai_sync() -> str:
+            resp = _requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
                         {"role": "system", "content": BRIEFING_PROMPT},
                         {"role": "user", "content": f"Generate today's briefing based on this data:\n\n{context}"},
                     ],
-                    max_tokens=3000,
-                    temperature=0.3,
-                )
-                break  # success
-            except AuthenticationError as e:
-                raise RuntimeError(f"Invalid OpenAI API key: {e}") from e
-            except RateLimitError as e:
-                raise RuntimeError(f"OpenAI rate limit or quota exceeded: {e}") from e
-            except APIConnectionError as e:
-                last_error = RuntimeError(f"Cannot reach OpenAI API (attempt {attempt+1}/3): {e}")
-                logger.warning(f"OpenAI connection error attempt {attempt+1}: {e}")
-                if attempt < 2:
-                    await asyncio.sleep(5 * (attempt + 1))
-                    continue
-                raise last_error
-        else:
-            raise last_error
+                    "max_tokens": 3000,
+                    "temperature": 0.3,
+                },
+                timeout=90,
+            )
+            if resp.status_code == 401:
+                raise RuntimeError(f"Invalid OpenAI API key (401)")
+            if resp.status_code == 429:
+                raise RuntimeError(f"OpenAI rate limit or quota exceeded (429)")
+            if not resp.ok:
+                raise RuntimeError(f"OpenAI API error {resp.status_code}: {resp.text[:200]}")
+            return resp.json()["choices"][0]["message"]["content"]
 
-        summary_text = response.choices[0].message.content
+        summary_text = await asyncio.to_thread(_call_openai_sync)
 
         # Save to DB
         async with async_session() as db:
