@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import BASE_DIR, DATA_DIR, FRONTEND_URL, MEDIA_DIR
 from database import init_db
-from routers import config_router, news, telegram, ws, summary
+from routers import config_router, news, telegram, ws, summary, x
 from workers.scheduler import start_background_tasks
 
 logging.basicConfig(
@@ -89,6 +89,7 @@ app.include_router(news.router)
 app.include_router(telegram.router)
 app.include_router(summary.router)
 app.include_router(config_router.router)
+app.include_router(x.router)
 app.include_router(ws.router)
 
 

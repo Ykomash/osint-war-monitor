@@ -7,6 +7,7 @@ from typing import List
 from services.news_aggregator import poll_nyt_api, poll_rss_feeds, poll_ynet_flash
 from services.telegram_monitor import run_telegram_monitor
 from services.ai_summary import auto_generate_summary
+from services.x_monitor import run_x_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ def start_background_tasks() -> List[asyncio.Task]:
         asyncio.create_task(poll_ynet_flash(), name="ynet_flash"),
         asyncio.create_task(run_telegram_monitor(), name="telegram_monitor"),
         asyncio.create_task(auto_generate_summary(), name="ai_summary"),
+        asyncio.create_task(run_x_monitor(), name="x_monitor"),
     ]
     logger.info(f"Started {len(tasks)} background tasks")
     return tasks

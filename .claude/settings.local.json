@@ -26,7 +26,10 @@
       "Bash(git commit:*)",
       "Bash(gh repo:*)",
       "Bash(git --version)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(source /Users/yotamkomash/OSINT/venv/bin/activate)",
+      "Bash(gzip -c /Users/yotamkomash/OSINT/backend/data/telegram.session)",
+      "Bash(python -c \"from routers import x; print\\(''X router OK''\\)\")"
     ]
   }
 }

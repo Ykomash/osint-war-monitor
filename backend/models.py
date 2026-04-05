@@ -69,3 +69,38 @@ class Config(Base):
 
     key: Mapped[str] = mapped_column(String(200), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="{}")  # JSON-encoded
+
+
+class XAccount(Base):
+    """A Twitter/X account being monitored."""
+    __tablename__ = "x_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(200), unique=True)   # without @
+    display_name: Mapped[str] = mapped_column(String(500), default="")
+    x_user_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # Twitter numeric ID
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    posts: Mapped[list["XPost"]] = relationship(back_populates="account")
+
+
+class XPost(Base):
+    """A tweet fetched from a monitored X account."""
+    __tablename__ = "x_posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(Integer, ForeignKey("x_accounts.id"))
+    tweet_id: Mapped[str] = mapped_column(String(50), unique=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    has_media: Mapped[bool] = mapped_column(Boolean, default=False)
+    media_urls: Mapped[str] = mapped_column(Text, default="[]")   # JSON list of image/video URLs
+    like_count: Mapped[int] = mapped_column(Integer, default=0)
+    retweet_count: Mapped[int] = mapped_column(Integer, default=0)
+    reply_count: Mapped[int] = mapped_column(Integer, default=0)
+    tweet_url: Mapped[str] = mapped_column(String(500), default="")
+    is_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
+    matched_keywords: Mapped[str] = mapped_column(Text, default="[]")
+
+    account: Mapped[XAccount] = relationship(back_populates="posts")

@@ -40,3 +40,25 @@ export const setConfig = (key: string, value: unknown) =>
 // Health
 export const healthCheck = () =>
   api.get('/health').then(r => r.data);
+
+// X (Twitter)
+export const getXPosts = (params?: Record<string, string | number | boolean>) =>
+  api.get('/x/posts', { params }).then(r => r.data);
+
+export const getXAccounts = () =>
+  api.get('/x/accounts').then(r => r.data);
+
+export const addXAccount = (username: string, display_name?: string) =>
+  api.post('/x/accounts', { username, display_name });
+
+export const toggleXAccount = (id: number) =>
+  api.patch(`/x/accounts/${id}`);
+
+export const deleteXAccount = (id: number) =>
+  api.delete(`/x/accounts/${id}`);
+
+export const setXScraperAccount = (creds: { username: string; password: string; email: string; email_password: string }) =>
+  api.post('/x/scraper-account', creds);
+
+export const getXScraperAccount = () =>
+  api.get('/x/scraper-account').then(r => r.data);

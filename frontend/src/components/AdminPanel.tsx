@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import {
   getTelegramChannels, addTelegramChannel, toggleChannel, deleteChannel,
   getConfig, setConfig,
+  getXAccounts, addXAccount, toggleXAccount, deleteXAccount,
+  setXScraperAccount, getXScraperAccount,
 } from '../api/client';
-import type { TelegramChannel } from '../types';
+import type { TelegramChannel, XAccount } from '../types/index';
 
 export default function AdminPanel() {
   const [channels, setChannels] = useState<TelegramChannel[]>([]);
@@ -13,8 +15,22 @@ export default function AdminPanel() {
   const [nytApiKey, setNytApiKey] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
 
+  // X state
+  const [xAccounts, setXAccounts] = useState<XAccount[]>([]);
+  const [newXUsername, setNewXUsername] = useState('');
+  const [scraperUsername, setScraperUsername] = useState('');
+  const [scraperPassword, setScraperPassword] = useState('');
+  const [scraperEmail, setScraperEmail] = useState('');
+  const [scraperEmailPw, setScraperEmailPw] = useState('');
+  const [scraperConfigured, setScraperConfigured] = useState(false);
+
   useEffect(() => {
     getTelegramChannels().then(setChannels).catch(console.error);
+    getXAccounts().then(setXAccounts).catch(console.error);
+    getXScraperAccount().then((d: any) => {
+      setScraperConfigured(d.configured);
+      if (d.username) setScraperUsername(d.username);
+    }).catch(console.error);
     getConfig().then(config => {
       if (config.keywords) setKeywords((config.keywords as string[]).join(', '));
       if (config.nyt_api_key) setNytApiKey(config.nyt_api_key as string);
@@ -61,6 +77,52 @@ export default function AdminPanel() {
   const saveOpenaiKey = async () => {
     await setConfig('openai_api_key', openaiApiKey);
     alert('OpenAI API key saved');
+  };
+
+  // X handlers
+  const handleAddXAccount = async () => {
+    const username = newXUsername.trim().replace(/^@/, '');
+    if (!username) return;
+    try {
+      await addXAccount(username);
+      setNewXUsername('');
+      getXAccounts().then(setXAccounts);
+      alert(`✅ Added @${username}. Posts will appear within 15 minutes.`);
+    } catch (e: any) {
+      alert(`❌ ${e.response?.data?.detail || 'Failed to add account'}`);
+    }
+  };
+
+  const handleToggleX = async (id: number) => {
+    await toggleXAccount(id);
+    getXAccounts().then(setXAccounts);
+  };
+
+  const handleDeleteX = async (id: number) => {
+    if (!confirm('Delete this X account?')) return;
+    await deleteXAccount(id);
+    getXAccounts().then(setXAccounts);
+  };
+
+  const handleSaveScraper = async () => {
+    if (!scraperUsername || !scraperPassword || !scraperEmail || !scraperEmailPw) {
+      alert('All scraper account fields are required');
+      return;
+    }
+    try {
+      await setXScraperAccount({
+        username: scraperUsername,
+        password: scraperPassword,
+        email: scraperEmail,
+        email_password: scraperEmailPw,
+      });
+      setScraperConfigured(true);
+      setScraperPassword('');
+      setScraperEmailPw('');
+      alert('✅ Scraper account saved. X monitor will login and start fetching.');
+    } catch (e: any) {
+      alert(`❌ ${e.response?.data?.detail || 'Failed to save scraper account'}`);
+    }
   };
 
   return (
@@ -119,10 +181,105 @@ export default function AdminPanel() {
         </div>
       </section>
 
+      {/* X Accounts */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-200 mb-1 flex items-center gap-2">
+          <span>𝕏</span> X Accounts to Monitor
+        </h2>
+        <p className="text-xs text-gray-500 mb-4">Add X usernames whose posts you want to track.</p>
+
+        <div className="space-y-2 mb-4">
+          {xAccounts.map(a => (
+            <div key={a.id} className="flex items-center gap-3 bg-gray-900 p-3 rounded-lg border border-gray-800">
+              <div className="flex-1">
+                <span className="text-sm text-gray-200">@{a.username}</span>
+                {a.display_name && a.display_name !== `@${a.username}` && (
+                  <span className="text-xs text-gray-500 ml-2">{a.display_name}</span>
+                )}
+              </div>
+              <button
+                onClick={() => handleToggleX(a.id)}
+                className={`text-xs px-2 py-1 rounded ${a.is_active ? 'bg-green-800 text-green-300' : 'bg-gray-700 text-gray-400'}`}
+              >
+                {a.is_active ? 'Active' : 'Paused'}
+              </button>
+              <button
+                onClick={() => handleDeleteX(a.id)}
+                className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-400 hover:bg-red-900"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+          {xAccounts.length === 0 && (
+            <p className="text-xs text-gray-600">No accounts added yet.</p>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            value={newXUsername}
+            onChange={e => setNewXUsername(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddXAccount()}
+            placeholder="@username or username"
+            className="flex-1 bg-gray-800 text-gray-300 text-sm p-2 rounded border border-gray-700"
+          />
+          <button
+            onClick={handleAddXAccount}
+            className="bg-sky-700 hover:bg-sky-600 text-white text-sm px-4 rounded transition-colors"
+          >
+            Add
+          </button>
+        </div>
+      </section>
+
+      {/* X Scraper Account */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-200 mb-1">𝕏 Scraper Account</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          A throwaway Twitter account used to fetch posts. Different from the accounts you're monitoring.
+          {scraperConfigured && <span className="text-green-500 ml-2">✓ Configured (@{scraperUsername})</span>}
+        </p>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <input
+            value={scraperUsername}
+            onChange={e => setScraperUsername(e.target.value)}
+            placeholder="Twitter username"
+            className="bg-gray-800 text-gray-300 text-sm p-2 rounded border border-gray-700"
+          />
+          <input
+            type="password"
+            value={scraperPassword}
+            onChange={e => setScraperPassword(e.target.value)}
+            placeholder="Twitter password"
+            className="bg-gray-800 text-gray-300 text-sm p-2 rounded border border-gray-700"
+          />
+          <input
+            value={scraperEmail}
+            onChange={e => setScraperEmail(e.target.value)}
+            placeholder="Email address"
+            className="bg-gray-800 text-gray-300 text-sm p-2 rounded border border-gray-700"
+          />
+          <input
+            type="password"
+            value={scraperEmailPw}
+            onChange={e => setScraperEmailPw(e.target.value)}
+            placeholder="Email password"
+            className="bg-gray-800 text-gray-300 text-sm p-2 rounded border border-gray-700"
+          />
+        </div>
+        <button
+          onClick={handleSaveScraper}
+          className="bg-sky-700 hover:bg-sky-600 text-white text-sm px-4 py-2 rounded transition-colors"
+        >
+          Save Scraper Account
+        </button>
+      </section>
+
       {/* Keywords */}
       <section className="mb-8">
         <h2 className="text-lg font-semibold text-gray-200 mb-4">Flagging Keywords</h2>
-        <p className="text-xs text-gray-500 mb-2">Comma-separated keywords for flagging Telegram messages</p>
+        <p className="text-xs text-gray-500 mb-2">Comma-separated keywords for flagging Telegram & X messages</p>
         <textarea
           value={keywords}
           onChange={e => setKeywords(e.target.value)}
@@ -137,7 +294,6 @@ export default function AdminPanel() {
       {/* API Keys */}
       <section className="mb-8">
         <h2 className="text-lg font-semibold text-gray-200 mb-4">API Keys</h2>
-
         <div className="space-y-4">
           <div>
             <label className="text-xs text-gray-400 block mb-1">OpenAI API Key (for AI Summary)</label>
@@ -154,7 +310,6 @@ export default function AdminPanel() {
               </button>
             </div>
           </div>
-
           <div>
             <label className="text-xs text-gray-400 block mb-1">NYT API Key (optional)</label>
             <div className="flex gap-2">

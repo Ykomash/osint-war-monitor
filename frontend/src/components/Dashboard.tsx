@@ -1,5 +1,6 @@
 import NewsFeed from './NewsFeed';
 import TelegramFeed from './TelegramFeed';
+import XFeed from './XFeed';
 import AISummary from './AISummary';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { DashboardProvider } from '../context/DashboardContext';
@@ -26,13 +27,16 @@ function DashboardContent() {
         <AISummary subscribe={subscribe} />
       </div>
 
-      {/* Two panel layout: News | Telegram */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1" style={{ minHeight: 'calc(100vh - 200px)' }}>
+      {/* Three panel layout: News | Telegram | X */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1" style={{ minHeight: 'calc(100vh - 200px)' }}>
         <div className="min-h-0">
           <NewsFeed subscribe={subscribe} />
         </div>
         <div className="min-h-0">
           <TelegramFeed subscribe={subscribe} />
+        </div>
+        <div className="min-h-0">
+          <XFeed subscribe={subscribe} />
         </div>
       </div>
     </div>
